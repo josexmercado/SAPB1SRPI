@@ -1,0 +1,28 @@
+
+	select * from oinv 
+	inner join inv1 on docnum = inv1.docentry
+	order by inv1.docentry desc 
+
+	SELECT * FROM RIN1 ORDER BY DOCENTRY DESC 
+
+	SELECT * FROM DLN1 
+	
+	SELECT PRICE, * FROM INV1 WHERE DOCENTRY = 560 
+
+	SELECT 
+	INV1.DOCENTRY,
+    ITEMCODE,
+    COUNT(*) occurrences
+FROM INV1
+GROUP BY
+	INV1.DOCENTRY,
+   ITEMCODE
+HAVING 
+    COUNT(*) > 1
+ORDER BY DOCENTRY ASC
+
+SELECT * FROM OINV WHERE ISINS = 'Y'
+
+SELECT T0.U_InvType, U_invDocNum, T0.U_ARResNum, T0.COMMENTS, T1.LineTotal, * FROM ORIN T0
+INNER JOIN RIN1 T1 ON T0.DocNum = T1.DocEntry
+WHERE T1.BASETYPE = -1
