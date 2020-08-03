@@ -1,25 +1,10 @@
 	DECLARE @PeriodFrom as Date = '2020-07-24'
-	DECLARE @PeriodTo as Date = '2020-07-27'
+	DECLARE @PeriodTo as Date = '2020-08-3'
 
 	SELECT
-		JE,
-		TransactionType,
-		Docnum,
-		DocumentDate,
-		CustomerCode,
-		CustomerName,
-		CustomerRefNo,
-		ItemGroup,
-		ItemCode,
-		ItemName,
-		UomCode,
-		Price,
-		QtySold,
-		TotalSales,
-		Cost,
-		TotalSales - Cost as GrossProfit,
-		Reference,
-		ReferenceDate
+		JE,TransactionType,Docnum,DocumentDate,CustomerCode,CustomerName,CustomerRefNo,
+		ItemGroup,ItemCode,ItemName,UomCode,Price,QtySold,TotalSales,Cost,
+		TotalSales - Cost as GrossProfit,Reference,ReferenceDate,RemainingBalance
 	FROM (
 			--standard AR
 		SELECT DISTINCT
@@ -43,6 +28,7 @@
 			,T3.StockValue as Cost
 			,'' as Reference
 			,'' as ReferenceDate
+			,'N/A' as RemainingBalance
 
 			-- JE Table
 			FROM OJDT T0
@@ -77,11 +63,17 @@
 			,T3.UomCode as UomCode
 			--,ROUND((T3.PriceAfVAT / 1.12) , 2 ) as Price
 			,T3.PRICE as Price
-			,T3.Quantity as QtySold
-			,(T3.PriceAfVAT / (1 + (SELECT rate/100 FROM VTG1 Ta where T3.VATGROUP = Ta.CODE))) * T3.Quantity as TotalSales
+
+			,T3.Quantity - (SELECT ISNULL(SUM(TA.Quantity), 0) FROM DLN1 TA WHERE T3.DocEntry = TA.BaseDocNum AND T3.ItemCode = TA.ItemCode)
+
+
+			--,T3.OpenQty as QtySold
+
+			,(T3.PriceAfVAT / (1 + (SELECT rate/100 FROM VTG1 Ta where T3.VATGROUP = Ta.CODE))) *  (T3.Quantity - (SELECT ISNULL(SUM(TA.Quantity), 0) FROM DLN1 TA WHERE T3.DocEntry = TA.BaseDocNum AND T3.ItemCode = TA.ItemCode)) as TotalSales
 			,0 as Cost
 			,'' as Reference
 			,'' as ReferenceDate
+			,'N/A' as RemainingBalance
 
 			-- JE Table
 			FROM OJDT T0
@@ -95,11 +87,13 @@
 			INNER JOIN OCRD T5 ON T2.CardCode = T5.CardCode
 			-- Item Group Name
 			INNER JOIN OITB T6 ON T4.ItmsGrpCod = T6.ItmsGrpCod
-			WHERE (T1.Account = 'SA010000' OR T1.Account = 'RE010000') AND T2.ISINS = 'Y' AND T2.U_BO_DRS = 'N'
-			AND T2.DOCNUM NOT IN (SELECT TA.BaseDocNum FROM DLN1 TA 
-								  INNER JOIN ODLN TB ON TB.DOCNUM = TA.DOCENTRY WHERE TA.BASETYPE = 13 AND TB.CANCELED = 'N')
-
-			AND T2.TaxDate BETWEEN @PeriodFrom AND @PeriodTo
+			WHERE (T1.Account = 'SA010000' OR T1.Account = 'RE010000') AND T2.ISINS = 'Y' AND T2.U_BO_DRS = 'N'	AND T2.TaxDate BETWEEN @PeriodFrom AND @PeriodTo
+			--AND T2.DOCNUM NOT IN (SELECT TA.BaseDocNum FROM DLN1 TA 
+			--					  INNER JOIN ODLN TB ON TB.DOCNUM = TA.DOCENTRY WHERE TA.BASETYPE = 13 AND TB.CANCELED = 'N')
+			--AND T3.DelivrdQty < T3.Quantity AND T3.OpenQty = 0
+			AND T3.Quantity <> (SELECT ISNULL(SUM(TA.Quantity), 0) FROM DLN1 TA 
+								INNER JOIN ODLN TB ON TB.DOCNUM = TA.DOCENTRY
+								WHERE T3.DocEntry = TA.BaseDocNum AND T3.ItemCode = TA.ItemCode AND TB.CANCELED = 'N')
 
 			UNION ALL
 
@@ -125,6 +119,7 @@
 			,T3.StockValue as Cost
 			,CONCAT('DN ' , T0.BaseRef) as Reference
 			,CONVERT(varchar, (SELECT T0.TaxDate FROM OINV TA WHERE TA.DOCNUM = T3.BaseDocNum), 107) as ReferenceDate
+			,CONVERT(varchar(MAX), QtyToShip) as RemainingBalance
 
 			-- JE Table
 			FROM OJDT T0
@@ -138,13 +133,13 @@
 			INNER JOIN OCRD T5 ON T2.CardCode = T5.CardCode
 			-- Item Group Name
 			INNER JOIN OITB T6 ON T4.ItmsGrpCod = T6.ItmsGrpCod
-			WHERE T0.TransType = 15 AND T1.Account = 'SA010000'
+			WHERE T0.TransType = 15 AND (T1.Account = 'SA010000' OR T1.Account = 'RE010000')
 			AND T2.Canceled = 'N'
 			AND (SELECT TA.TAXDATE FROM OINV TA WHERE TA.DOCNUM = T3.BaseDocNum) BETWEEN @PeriodFrom AND @PeriodTo
 
 			UNION ALL
 
-			---AR CM
+			---AR CM // SALES
 		SELECT DISTINCT
 			T0.NUMBER AS JE
 			,3 as Groupings
@@ -174,10 +169,11 @@
 			END AS COST
 			,CONCAT('IN ' , T3.BASEDOCNUM) as Reference
 			,'' as ReferenceDate
+			,'N/A' as RemainingBalance
 
 			-- JE Table
 			FROM OJDT T0
-			INNER JOIN JDT1 T1 ON T0.Number = T1.TransId
+			INNER JOIN JDT1 T1 ON T0.Number = T1.TransId AND T1.Account = 'RE010000'
 			-- Table for Deliveries
 			INNER JOIN ORIN T2 ON T0.BaseRef = T2.DocNum
 			INNER JOIN RIN1 T3 ON T2.DocNum = T3.DocEntry
@@ -187,7 +183,7 @@
 			INNER JOIN OCRD T5 ON T2.CardCode = T5.CardCode
 			-- Item Group Name
 			INNER JOIN OITB T6 ON T4.ItmsGrpCod = T6.ItmsGrpCod
-			WHERE T0.TransType = 14 AND (T1.Account = 'SA010000' OR T1.Account = 'RE010000')
+			WHERE T0.TransType = 14 AND (T1.Account = 'RE010000')
 			AND T2.Canceled = 'N'
 			AND (SELECT TA.TAXDATE FROM OINV TA WHERE TA.DOCNUM = T3.BaseDocNum) BETWEEN @PeriodFrom AND @PeriodTo
 
