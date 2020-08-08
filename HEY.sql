@@ -2,10 +2,11 @@
 
 
 
-DECLARE @PeriodFrom as Date = '2020-07-24'
-DECLARE @PeriodTo as Date = '2020-08-3'
-SELECT 
+	DECLARE @PeriodFrom as Date = '2020-06-1'
+	DECLARE @PeriodTo as Date = '2020-06-2'
 
+SELECT 
+t0.number as JEEntry,
 t0.taxdate,
 CASE WHEN T0.TRANSTYPE = 69 THEN CONCAT(T0.Transtype, ' - Landed Costs')
 WHEN T0.TransType = 15 THEN  CONCAT(T0.Transtype, ' - Delivery')
@@ -68,13 +69,15 @@ CASE WHEN T0.MEMO <> T1.LINEMEMO THEN
 concat(t0.Memo,' : ', T1.LineMemo)
 ELSE t0.Memo
 END as 'Brief Description',
-
-T1.Credit * -1 + T1.Debit AS Amount
+T1.ACCOUNT,
+T1.Credit as Credit,
+T1.Debit as Debit
 
 FROM OJDT t0 
 INNER JOIN JDT1 T1 ON T0.NUMBER = T1.TRANSID 
 LEFT OUTER JOIN OACT T2 ON T1.ACCOUNT = T2.AcctCode
-WHERE (T1.Account = 'SA010000' OR T1.Account = 'RE010000') AND T0.TaxDate BETWEEN @PeriodFrom AND @PeriodTo
+WHERE (T1.Account = 'SA010000' OR T1.Account = 'RE010000')
+AND T0.TaxDate BETWEEN @PeriodFrom AND @PeriodTo
 ORDER BY T0.taxdate, T1.BaseRef ASC
 
 --select * from jdt1 
