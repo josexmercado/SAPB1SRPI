@@ -1,5 +1,5 @@
 	DECLARE @PeriodFrom as Date = '2020-06-1'
-	DECLARE @PeriodTo as Date = '2020-06-2'
+	DECLARE @PeriodTo as Date = '2020-06-1'
 
 	SELECT
 		TransactionType,Docnum,DocumentDate,CustomerCode,CustomerName,CustomerRefNo,
